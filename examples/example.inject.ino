@@ -1,211 +1,353 @@
 /* This is an example of code for https://www.tinkercad.com.
  *
- * The library code was injoined to the demo code, since the
- * tinkercad doesn't have the ability to include external libraries.
+ * The library code was attached to the demo code because
+ * tinkercad doesn't have the ability to include external lib.
  *
  * Use `make split` to split the code into  *.cpp and *.h files.
  * Don't remove the @file and @raw tags - they are necessary for
  * automatic file splitting.
  */
 
-//
-
 // @file loop.h
-/* Loop
- * An asynchronous delay simulation library for microcontrollers.
- *
- *
+/** An asynchronous delay simulation library.
  */
 #ifndef _LOOP_H
 #define _LOOP_H
 
 #include <limits.h>
 
-// Loop counts down the set time interval and reports its readiness.
-//
-// Required:
-//      - limits.h
-//
-// Examples:
-//      Loop l0 = Loop(2000);                //  2k millis (millis is default)
-//      Loop l1 = Loop(5000, Loop::MICROS);  //  5k micros
-//      Loop l2 = Loop(100, Loop::MILLIS);   // 100 millis
-//      Loop l3 = Loop(1, Loop::SECONDS);    //   1 seconds
-//	    ...
-//	    if (s0.isReady()) { /* do something... */ }
-//	    if (s1.isReady()) { /* do something... */ }
-//      ...
 class Loop {
    private:
-    unsigned long timestamp = 0;  // the time of last readiness
-    unsigned long interval = 0;   // the interval by microseconds
-    unsigned int counter = 1;     // iterations counter
+    // The number of times the loop object has been active.
+    unsigned long count = 0;
+
+    // The time after which the loop object becomes active.
+    unsigned long interval = 0;
+
+    // The last time the loop object was active or
+    // when the object was initialized.
+    unsigned long timestamp = 0;
 
    public:
-    // Units of time to set the interval.
-    enum TimeUnits { MICROS,
-                     MILLIS,
-                     SECONDS };
+    /** Constructor.
+     * Allows to set the interval when creating an object.
+     * @param[in] interval delay time in milliseconds.
+     */
+    Loop(unsigned long interval = 0);
+    ~Loop() = default;
 
-    // Constructor.
-    // @param i the interval by integer value.
-    // @param u the units of time to set the interval.
-    Loop(unsigned long i = 0, TimeUnits u = MILLIS);
+    /** Sets the time after which the loop object becomes active.
+     * @param[in] interval delay time in milliseconds.
+     * @return void
+     */
+    void setInterval(unsigned long interval);
 
-    // Re-set a custom interval in microseconds/milliseconds.
-    // Example:
-    //      s0.setInterval(1000, Loop::MICROS);
-    //      s1.setInterval(100, Loop::MILLIS);
-    unsigned long setInterval(unsigned long i, TimeUnits u = MILLIS);
+    /** Returns the time after which the loop object becomes ready.
+     * @return delay time in milliseconds.
+     */
+    unsigned long getInterval();
 
-    // Returns true if the set time has expired
-    // and executes refreshTime.
-    bool isReady();
+    /** Reset timestamp.
+     * Assigns the current millis() value to the timestamp value.
+     * @return void
+     */
+    void resetTime();
 
-    // Set the countdown time to the current one.
-    void refreshTime();
+    /** Readiness check.
+     * @param[in] reset if true, the timestamp indicator will be reset
+     * automatically when the object reaches the ready state.
+     *
+     * @retval true if the set interval is exhausted and the object is ready;
+     * @retval false otherwise.
+     *
+     * It is convenient for quick operations:
+     * @code
+     * if (loop.isReady(true)) {
+     *     // a fast code here ...
+     * }
+     * @endcode
+     *
+     * But for complex code that requires a long time for its execution,
+     * better in manual mode reset of the timestamp:
+     * @code
+     * if (loop.isReady()) {
+     *   // a slow code here ...
+     *   loop.resetTime();
+     * }
+     * @endcode
+     */
+    bool isReady(bool reset = false);
 
-    // Reset the counter to the given value.
-    void resetCounter(unsigned int v = 1);
+    /** Returns the number of times the loop object has been active.
+     * @return number of times the loop object has been ready.
+     */
+    unsigned long getCount();
 
-    // Returns the current counter value.
-    int getCounter();
+    /** Resets the count to zero.
+     * @return void
+     */
+    void resetCount();
 
-    // Returns true if this is an even iteration index.
+    /** Returns true if this is an even state of isReady.
+     * The value depends on the value of the counter and
+     * always returns false if the counter is 0.
+     * @retval true if the counter is even.
+     * @retval false otherwise.
+     */
     bool isEven();
 
-    // Returns true if this is an odd iteration index.
+    /** Returns true if this is an odd state of isReady.
+     * The value depends on the value of the counter and
+     * always returns false if the counter is 0.
+     * @retval true if the counter is odd.
+     * @retval false otherwise.
+     */
     bool isOdd();
 
-    // Returns true if i is corresponds to the current iteration.
-    // For example, returns true if this is the 10th iteration:
-    //      l.isIter(10)
-    bool isIter(int i);
+    /** Checks if readiness has been reached at least once.
+     * @retval true if the counter is 0 - indicates that
+     * the object was never ready.
+     * @retval false otherwise.
+     */
+    bool isNever();
 };
+
 #endif  // _LOOP_H
 
 // @file loop.cpp
 // @raw #include "loop.h"
 
 // Constructor.
-Loop::Loop(unsigned long i, TimeUnits u) {
-    setInterval(i, u);
+Loop::Loop(unsigned long interval) {
+    setInterval(interval);
 }
 
-// Sets a custom interval by microseconds/milliseconds.
-unsigned long Loop::setInterval(unsigned long i, TimeUnits u) {
-    // Set the interval by microseconds always.
-    interval = i * (u == MICROS ? 1 : (u == MILLIS ? 1000 : 1000000));
-    refreshTime();
-    resetCounter();
-
-    return interval;
+// Sets the time after which the loop object becomes active.
+void Loop::setInterval(unsigned long interval) {
+    this->interval = interval;
+    this->resetTime();
 }
 
-// Returns true if the interval is over.
-// Addresses an issue when the microcontroller running for
-// a long time and the micros method resets to zero.
-// Also automatically performs refreshTime.
-bool Loop::isReady() {
-    bool result = false;
-    unsigned long delta = micros() - timestamp;
+// Returns the time after which the loop object becomes active.
+unsigned long Loop::getInterval() {
+    return this->interval;
+}
 
-    if (delta < 0) {
-        // The micros method has been refreshed.
-        // Note: include 'limits.h' to use ULONG_MAX.
-        delta = ULONG_MAX - timestamp + (-1 * delta);
+// Assigns the current millis value to the timestamp value.
+void Loop::resetTime() {
+    this->timestamp = millis();
+}
+
+// Returns true if the loop object is active.
+// Takes an optional reset argument. If it's true, when the object
+// reaches the ready state, the timestamp indicator will be reset
+// automatically. It is convenient for quick operations:
+// if (loop.isReady(true)) { /* a fast code here ... */ }
+//
+// But for complex code that requires a long time for its execution,
+// we need to manually reset of the timestamp:
+// if (loop.isReady()) {
+//   /* a long code here ... */
+//   loop.resetTime();
+// }
+bool Loop::isReady(bool reset) {
+    // The millis method resets to zero when the ULONG_MAX range is reached.
+    // Therefore, if the last fixation of time was close to the moment of
+    // resetting the delta can get a negative value with a very large range
+    // close to -1 * ULONG_MAX.
+    long delta = millis() - this->timestamp < 0
+                     ? ULONG_MAX - this->timestamp + millis()
+                     : millis() - this->timestamp;
+
+    // If the loop object is active, then the count is incremented
+    // and if reset is true - resets the timestamp.
+    if (delta >= this->interval) {
+        this->count++;
+        if (reset)
+            this->resetTime();
+
+        return true;
     }
 
-    result = delta >= interval ? true : false;
-    if (result)
-        refreshTime();
-
-    return result;
+    return false;
 }
 
-// Manual update countdown time.
-// They are used in blocks that require long calculations,
-// for example:
-//      Loop s = Loop(250);     // 250 millis
-//	    ...
-//	    if (s.isReady()) {      // Auto refresh here.
-//          /* long task ... */ // The time is probably
-//                              // greater than the interval.
-//          s.refreshTime();    // Manual refresh here.
-//      }
-void Loop::refreshTime() {
-    timestamp = micros();
-
-    // Reset to zero when the stack overflows.
-    if (counter + 1 >= UINT_MAX) {
-        counter = isEven() ? 1 : 2;
-    } else {
-        counter++;
-    }
+// Returns the number of times the loop object has been active.
+unsigned long Loop::getCount() {
+    return this->count;
 }
 
-// Reset the counter to the given value.
-void Loop::resetCounter(unsigned int v) {
-    counter = v;
+// Resets the count to zero.
+void Loop::resetCount() {
+    this->count = 0;
 }
 
-// Get curret iteration index.
-int Loop::getCounter() {
-    return counter;
-}
-
-// Returns true if this is an even iteration index.
+// Returns true if this is an even state of isReady.
+// The value depends on the value of the counter and
+// always returns false if the counter is 0.
 bool Loop::isEven() {
-    return counter % 2 == 0 ? true : false;
+    return this->count % 2 == 0 && this->count != 0;
 }
 
-// Returns true if this is an odd iteration index.
+// Returns true if this is an odd state of isReady.
+// The value depends on the value of the counter and
+// always returns false if the counter is 0.
 bool Loop::isOdd() {
-    return !isEven();
+    return this->count % 2 != 0 && this->count != 0;
 }
 
-// Returns true if i is corresponds to the current iteration.
-bool Loop::isIter(int i) {
-    return i % 2 == 0 ? true : false;
+// Returns true if the counter is 0 - indicates that
+// the object was never ready.
+bool Loop::isNever() {
+    return this->count == 0;
 }
 
-// @file main.ino
+// @file example.ino
 // @raw #include "loop.h"
 
-#define LED_RED 13
-#define LED_GREEN 12
-#define LED_YELLOW 11
+/* Attiny interface simulator for use with Arduino.
+#define PB0 4
+#define PB1 3
+#define PB2 2
+#define PB3 6
+#define PB4 5
+#define PB5 7
+//*/
 
-Loop spanLedRed, spanLedGreen, spanLedYellow;
+// An example of asynchronous reading of a pushbutton
+// (with switch bounce processing) and independent
+// flickering of an LED.
 
-void setup() {
-    Serial.begin(9600);
+// Shift register.
+// The 74HC595 shift register is used to control the segment display.
+#define SH_INPUT_PIN PB3
+#define SH_CLOCK_PIN PB1
+#define SH_O_CLOCK_PIN PB2
 
-    spanLedRed = Loop(1, Loop::SECONDS);         // every second
-    spanLedGreen = Loop(300, Loop::MILLIS);      // 300 milliseconds
-    spanLedYellow = Loop(500000, Loop::MICROS);  // 500k microseconds
+// LED pin.
+#define RED_LED PB0
 
-    spanLedRed.resetCounter(65000 - 5);
+// Buttons pin.
+#define INC_BUTTON_PIN PB5
+#define DEC_BUTTON_PIN PB4
 
-    pinMode(LED_RED, OUTPUT);
-    pinMode(LED_GREEN, OUTPUT);
-    pinMode(LED_YELLOW, OUTPUT);
+// Globals.
+bool ledOn = true;
+bool dotOn = false;
+bool incIsPressed = false;
+bool decIsPressed = false;
+char lastNumber = 5;
+Loop ledLoop, incLoop, decLoop;
+Loop incPressLoop, decPressLoop;
+
+// Converts a number to a set of segments for a segment display.
+// Controls the dot using the bool dot value.
+char number(char n, bool dot) {
+    char value = 0;
+    char segments[11] = {
+        0b11111100,  // 0
+        0b01100000,  // 1
+        0b11011010,  // 2
+        0b11110010,  // 3
+        0b01100110,  // 4
+        0b10110110,  // 5
+        0b10111110,  // 6
+        0b11100000,  // 7
+        0b11111110,  // 8
+        0b11100110,  // 9
+        0b10011110,  // E - ERROR
+    };
+
+    // Get segment value.
+    value = n > 9 ? segments[10] : segments[n];
+
+    // To manage bits, use the following logic, where id
+    // is the bit identifier from right to left from 0 to 7,
+    // and use 1ULL if number is wider than unsigned long:
+    // Set a bit:  n |= 1UL << id;
+    // Clear a bit: n &= ~(1UL << id);
+    // Toggle a bit: n ^= 1UL << id;
+    return dot ? value | 1UL << 0 : value;
 }
 
+// Displays the specified number on the segment display
+// or E (error) if the result cannot be shown on the
+// segment display.
+void echo(char n, bool dot) {
+    // Prepare CI to recive data.
+    digitalWrite(SH_O_CLOCK_PIN, LOW);
+
+    // LSBFIRST - normal order;
+    // MSBFIRST - inverse order;
+    shiftOut(SH_INPUT_PIN, SH_CLOCK_PIN, LSBFIRST, number(n, dot));
+
+    // Inform CI to applay data.
+    digitalWrite(SH_O_CLOCK_PIN, HIGH);
+}
+
+// Settings.
+void setup() {
+    // Shift register.
+    pinMode(SH_INPUT_PIN, OUTPUT);
+    pinMode(SH_CLOCK_PIN, OUTPUT);
+    pinMode(SH_O_CLOCK_PIN, OUTPUT);
+
+    // Async LED.
+    pinMode(RED_LED, OUTPUT);
+    ledLoop = Loop(1000);  // LED lights up and blinks every second
+
+    // Buttons.
+    pinMode(INC_BUTTON_PIN, INPUT);
+    pinMode(DEC_BUTTON_PIN, INPUT);
+    incLoop = Loop(32);  // prevent bounce for inc button
+    decLoop = Loop(32);  // prevent bounce for dec button
+    incPressLoop = Loop(1000);
+    decPressLoop = Loop(1000);
+}
+
+// Loop.
 void loop() {
-    if (spanLedRed.isReady()) {
-        digitalWrite(LED_RED, spanLedRed.isEven() ? HIGH : LOW);
+    char number = lastNumber;
 
-        Serial.print("Counter: ");
-        Serial.println(spanLedRed.getCounter());
-        Serial.println(UINT_MAX);
+    // Async LED.
+    // The LED is turned on and off every ledLoop interval.
+    if (ledLoop.isReady(true)) {
+        digitalWrite(RED_LED, (ledOn = !ledOn) ? HIGH : LOW);
     }
 
-    if (spanLedGreen.isReady()) {
-        digitalWrite(LED_GREEN, spanLedGreen.isEven() ? HIGH : LOW);
+    // Increment button.
+    // Polls the button every incLoop interval, protects against bounce.
+    if (incLoop.isReady()) {
+        if (digitalRead(INC_BUTTON_PIN) == HIGH) {
+            if (number < 9 && (incPressLoop.isReady(true) || !incIsPressed))
+                number++;
+            incIsPressed = true;
+        } else {
+            incIsPressed = false;
+        }
+
+        // The code may have some delay, so we reset the timer manually.
+        incLoop.resetTime();
     }
 
-    if (spanLedYellow.isReady()) {
-        digitalWrite(LED_YELLOW, spanLedYellow.isEven() ? HIGH : LOW);
+    // Decrement button.
+    // Polls the button every decLoop interval, protects against bounce.
+    if (decLoop.isReady()) {
+        if (digitalRead(DEC_BUTTON_PIN) == HIGH) {
+            if (number >= 0 && (decPressLoop.isReady(true) || !decIsPressed))
+                number--;
+            decIsPressed = true;
+        } else {
+            decIsPressed = false;
+        }
+
+        // The code may have some delay, so we reset the timer manually.
+        decLoop.resetTime();
+    }
+
+    if (number != lastNumber || ledLoop.isNever() || dotOn) {
+        dotOn = incIsPressed || decIsPressed;
+        echo(number, dotOn);
+        lastNumber = number;
     }
 }

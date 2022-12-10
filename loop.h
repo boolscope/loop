@@ -1,68 +1,105 @@
+/** An asynchronous delay simulation library.
+ */
 #ifndef _LOOP_H
 #define _LOOP_H
 
 #include <limits.h>
 
-// Loop counts down the set time interval and reports its readiness.
-//
-// Required:
-//      - limits.h
-//
-// Examples:
-//      Loop l0 = Loop(2000);                //  2k millis (millis is default)
-//      Loop l1 = Loop(5000, Loop::MICROS);  //  5k micros
-//      Loop l2 = Loop(100, Loop::MILLIS);   // 100 millis
-//      Loop l3 = Loop(1, Loop::SECONDS);    //   1 seconds
-//	    ...
-//	    if (s0.isReady()) { /* do something... */ }
-//	    if (s1.isReady()) { /* do something... */ }
-//      ...
 class Loop {
    private:
-    unsigned long timestamp = 0;  // the time of last readiness
-    unsigned long interval = 0;   // the interval by microseconds
-    unsigned int counter = 1;     // iterations counter
+    // The number of times the loop object has been active.
+    unsigned long count = 0;
+
+    // The time after which the loop object becomes active.
+    unsigned long interval = 0;
+
+    // The last time the loop object was active or
+    // when the object was initialized.
+    unsigned long timestamp = 0;
 
    public:
-    // Units of time to set the interval.
-    enum TimeUnits { MICROS,
-                     MILLIS,
-                     SECONDS };
+    /** Constructor.
+     * Allows to set the interval when creating an object.
+     * @param[in] interval delay time in milliseconds.
+     */
+    Loop(unsigned long interval = 0);
+    ~Loop() = default;
 
-    // Constructor.
-    // @param i the interval by integer value.
-    // @param u the units of time to set the interval.
-    Loop(unsigned long i = 0, TimeUnits u = MILLIS);
+    /** Sets the time after which the loop object becomes active.
+     * @param[in] interval delay time in milliseconds.
+     * @return void
+     */
+    void setInterval(unsigned long interval);
 
-    // Re-set a custom interval in microseconds/milliseconds.
-    // Example:
-    //      s0.setInterval(1000, Loop::MICROS);
-    //      s1.setInterval(100, Loop::MILLIS);
-    unsigned long setInterval(unsigned long i, TimeUnits u = MILLIS);
+    /** Returns the time after which the loop object becomes ready.
+     * @return delay time in milliseconds.
+     */
+    unsigned long getInterval();
 
-    // Returns true if the set time has expired
-    // and executes refreshTime.
-    bool isReady();
+    /** Reset timestamp.
+     * Assigns the current millis() value to the timestamp value.
+     * @return void
+     */
+    void resetTime();
 
-    // Set the countdown time to the current one.
-    void refreshTime();
+    /** Readiness check.
+     * @param[in] reset if true, the timestamp indicator will be reset
+     * automatically when the object reaches the ready state.
+     *
+     * @retval true if the set interval is exhausted and the object is ready;
+     * @retval false otherwise.
+     *
+     * It is convenient for quick operations:
+     * @code
+     * if (loop.isReady(true)) {
+     *     // a fast code here ...
+     * }
+     * @endcode
+     *
+     * But for complex code that requires a long time for its execution,
+     * better in manual mode reset of the timestamp:
+     * @code
+     * if (loop.isReady()) {
+     *   // a slow code here ...
+     *   loop.resetTime();
+     * }
+     * @endcode
+     */
+    bool isReady(bool reset = false);
 
-    // Reset the counter to the given value.
-    void resetCounter(unsigned int v = 1);
+    /** Returns the number of times the loop object has been active.
+     * @return number of times the loop object has been ready.
+     */
+    unsigned long getCount();
 
-    // Returns the current counter value.
-    int getCounter();
+    /** Resets the count to zero.
+     * @return void
+     */
+    void resetCount();
 
-    // Returns true if this is an even iteration index.
+    /** Returns true if this is an even state of isReady.
+     * The value depends on the value of the counter and
+     * always returns false if the counter is 0.
+     * @retval true if the counter is even.
+     * @retval false otherwise.
+     */
     bool isEven();
 
-    // Returns true if this is an odd iteration index.
+    /** Returns true if this is an odd state of isReady.
+     * The value depends on the value of the counter and
+     * always returns false if the counter is 0.
+     * @retval true if the counter is odd.
+     * @retval false otherwise.
+     */
     bool isOdd();
 
-    // Returns true if i is corresponds to the current iteration.
-    // For example, returns true if this is the 10th iteration:
-    //      l.isIter(10)
-    bool isIter(int i);
+    /** Checks if readiness has been reached at least once.
+     * @retval true if the counter is 0 - indicates that
+     * the object was never ready.
+     * @retval false otherwise.
+     */
+    bool isNever();
 };
+
 #endif  // _LOOP_H
 

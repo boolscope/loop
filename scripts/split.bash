@@ -35,8 +35,9 @@ echo "Splitting $1 into *.h and *.cpp files."
 echo "Output directory: $outdir"
 echo "Wait please..."
 
+
 # Read the file line by line.
-while IFS= read -r line;do
+while IFS= read -r line; do
     # Check if the line contains out file name.
     if [[ $line == *"@file"* ]]; then
         # Parse the line, get the file name,
@@ -50,8 +51,8 @@ while IFS= read -r line;do
         continue
     fi
 
-    # Ignore *.ino content.
-    if [[ $outfile == *.ino ]]; then
+    # Ignore *.ino files.
+    if [[ $outfile != *.h && $outfile != *.cpp ]]; then
         outfile=""
     fi
 
@@ -60,9 +61,12 @@ while IFS= read -r line;do
         continue
     fi
 
+    # Get the full path to the file.
+    target=$(readlink -m "$outdir/$outfile")
+
     # Clean the file if the file name has been changed.
     if [ "$isnewfile" = true ]; then
-        truncate -s 0 $outfile
+        truncate -s 0 "$target"
         isnewfile=false
     fi
 
@@ -71,6 +75,6 @@ while IFS= read -r line;do
     fi
 
     # Append the line to the file.
-    echo "$line" >> "$outdir/$outfile"
+    echo "$line" >> "$target"
 done < "$1"
 echo "Done!"
